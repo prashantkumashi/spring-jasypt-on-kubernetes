@@ -1,4 +1,4 @@
-# Spring-boot and Jasypt integration with externalized Jasypt properties and passwords passed as Environment settings in Kubernetes Deployment yaml
+# Spring-boot and Jasypt integration with externalized Jasypt properties for Kubernetes Deployment
 
 One of the most important aspect of 12-factor coding standards is externalization of environment specific variables. We will cover how we can easily achieve this using Spring Boot. We will also use JASYPT framework to encrypt these environment variables which are passed from the deployment yaml
 
