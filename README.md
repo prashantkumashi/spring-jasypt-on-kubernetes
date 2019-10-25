@@ -1,14 +1,16 @@
-# Spring-boot and Jasypt integration with externalized Jasypt properties and passwords 
+# Spring-boot and Jasypt integration with externalized Jasypt properties and passwords passed as Environment settings in Kubernetes Deployment yaml
 
-One of the most important aspect of 12-factor coding standards is externalization of environment specific variables. We will cover how we can easily achieve this using Spring Boot. We will also use JASYPT framework to encrypt these environment variables. 
+One of the most important aspect of 12-factor coding standards is externalization of environment specific variables. We will cover how we can easily achieve this using Spring Boot. We will also use JASYPT framework to encrypt these environment variables which are passed from the deployment yaml
 
 ##### We will be performing following steps:
 - Download this source code 
 - Create database, database user and table 
 - Run JASYPT command to encrypt your user id and password 
-- Configure environment variables - Windows / Linux 
-- Review the application.properties and Jasypt Bean definition 
-- Build your code 
+- Run maven command to build the code 
+- Run Docker commands to create the image and push the image to docker registry   
+- Review the k8s/springjasypt-deployment.yaml and replace the container image and database server ip address 
+- Connect to Kubernetes cluster
+- Deploy the application to Kubernetes cluster and expose the service 
 - Test your application 
 
 ### Download this source code 
@@ -84,20 +86,6 @@ PxSPx1RxhGIoFlBbWLla5YlqpI68w4la
 
 > IMPORTANT: You can also add other command line options for further hardening your encryption, the options chosen for encryptions should also be configured in the JASYPT encryptor configuration in your java bean definition. For more details go to http://www.jasypt.org/index.html 
 
-### Configure environment variables - Windows / Linux 
-##### Setup Linux environment as follows, these variables are used in application.properties file
-```
-export MYSQL_DB_SERVER=NN.NN.NN.NN
-export MYSQL_DB_USER="ENC(2QOhTWf7XCnYDK2lI/eIOA==)"
-export MYSQL_DB_PASSWD="ENC(PxSPx1RxhGIoFlBbWLla5YlqpI68w4la)"
-export JASYPT_ENCRYPTOR_ALGORITHM=PBEWithMD5AndDES
-export JASYPT_ENCRYPTOR_PASSWORD=Password
-```
-##### Setup Windows environment as follows 
-Go to Control Panel\All Control Panel Items\System and click on Advanced system settings. In the system properties window click on "Environment Variables" button. Add the five variables as shown below
-
-<p><img src="https://github.com/prashantkumashi/spring-jasypt-env-config/raw/master/images/WindowsEnv.PNG"/></p>
-
 ### Review the application.properties and Jasypt Bean definition 
 ##### Check ```src/main/resources/application.properties``` file, it should reference the variables defined
 ```
@@ -139,11 +127,12 @@ It has bean definition for EnvironmentStringPBEConfig. This object is a Jasypt c
        return config;
    }
 ```
+
 ### Build your code 
-Run ```mvn clean install``` to build the code and create the distribution, if you are running it before setting the environment variables the unit tests would fail, add ```-DskipTests=true``` to skip tests. 
+Run ```mvn clean install -DskipTests=true``` to build the code and create the distribution, if you are running it before setting the environment variables the unit tests would fail, add ```-DskipTests=true``` to skip tests. 
 
 ```
-$ mvn clean install
+$ mvn clean install -DskipTests=true
 [INFO] Scanning for projects...
 [INFO]
 [INFO] --< com.samples.pck.spring-jasypt-env-config:spring-jasypt-env-config >--
@@ -162,36 +151,120 @@ $ mvn clean install
 [INFO] Finished at: 2019-10-18T20:07:19+05:30
 [INFO] ------------------------------------------------------------------------
 ```
+
+### Run Docker commands to create the image and push the image to docker registry   
+Build your image and push to docker hub or any other container registry. We will be using docker hub, to connect with docker hub run the login command. 
+```
+sudo docker login docker.io
+```
+
+I have created a public repository on hub.docker.com with the name spring-jasypt-on-kubernetes which we will use for pushing the image
+```
+sudo docker build -t pr20180701/spring-jasypt-on-kubernetes .
+sudo docker push pr20180701/spring-jasypt-on-kubernetes
+```
+
+### Review the k8s directory  
+##### Namespace yaml - springjasypt-namespace.yaml
+```
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: samples
+```
+
+##### Deployment yaml - springjasypt-deployment.yaml
+```
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: springjasypt
+  namespace: samples
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: springjasypt
+        version: v1
+    spec:
+      containers:
+      - name: springjasypt
+        image: <containerrepourlforimage>
+        env:
+        - name: JAVA_OPTS
+          value: -Xms128m -Xmx512m -XX:PermSize=128m -XX:MaxPermSize=128m -XX:+UseG1GC -Djava.security.egd=file:/dev/urandom
+        - name: MYSQL_DB_USER
+          value: "ENC(1cWxyUbkZeqw+LYA/LyRhg==)"
+        - name: MYSQL_DB_SERVER
+          value: "<databasehostname or ip>"
+        - name: MYSQL_DB_PASSWD
+          value: "ENC(wUVs1lmbkgB7OqSPhKeFKVTY8siHCoag)"
+        - name: JASYPT_ENCRYPTOR_ALGORITHM
+          value: "PBEWithMD5AndDES"
+        - name: JASYPT_ENCRYPTOR_PASSWORD
+          value: "Password"
+        ports:
+        - containerPort: 8088
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 10001
+          capabilities:
+            drop:
+              - all
+            add:
+              - NET_BIND_SERVICE
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp-volume
+      volumes:
+        - name: tmp-volume
+          emptyDir:
+            medium: Memory
+      nodeSelector:
+        beta.kubernetes.io/os: linux
+```
+
+##### Replace the container image and database server ip address based on your environment values
+In the example demonstration we will replace the value for ```<containerrepourlforimage>``` to pr20180701/spring-jasypt-on-kubernetes 
+```
+      - name: springjasypt
+        image: <containerrepourlforimage>
+```
+
+Replace the value ```<databasehostname or ip>``` with the database server ip address
+```
+        - name: MYSQL_DB_SERVER
+          value: "<databasehostname or ip>"
+```
+
+##### Review springjasypt-service.yaml file
+```
+apiVersion: v1
+kind: Service
+metadata:
+  name: springjasypt
+  labels:
+    app: springjasypt
+  namespace: samples
+spec:
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8088
+  selector:
+    app: springjasypt
+  type: NodePort
+```
+
+### Connect to Kubernetes cluster
+### Deploy the application to Kubernetes cluster and expose the service 
+
+
 ### Test your application 
-Run ```mvn spring-boot:run``` to run the application
 
-```
-$ mvn spring-boot:run 
-[INFO] Scanning for projects...
-[INFO]                                                                         
-[INFO] ------------------------------------------------------------------------
-[INFO] Building spring-jasypt-env-config 0.0.1-SNAPSHOT
-[INFO] ------------------------------------------------------------------------
-[INFO] 
-[INFO] >>> spring-boot-maven-plugin:2.1.9.RELEASE:run (default-cli) > test-compile @ spring-jasypt-env-config >>>
-...
-...
-...
-...
-...
-2019-10-18 14:41:38.287  INFO 6149 --- [  restartedMain] org.hibernate.Version                    : HHH000412: Hibernate Core {5.3.12.Final}
-2019-10-18 14:41:38.293  INFO 6149 --- [  restartedMain] org.hibernate.cfg.Environment            : HHH000206: hibernate.properties not found
-2019-10-18 14:41:38.607  INFO 6149 --- [  restartedMain] o.hibernate.annotations.common.Version   : HCANN000001: Hibernate Commons Annotations {5.0.4.Final}
-2019-10-18 14:41:38.948  INFO 6149 --- [  restartedMain] org.hibernate.dialect.Dialect            : HHH000400: Using dialect: org.hibernate.dialect.MySQLDialect
-2019-10-18 14:41:40.280  INFO 6149 --- [  restartedMain] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
-2019-10-18 14:41:40.993  WARN 6149 --- [  restartedMain] aWebConfiguration$JpaWebMvcConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
-config
-2019-10-18 14:41:41.864  INFO 6149 --- [  restartedMain] o.s.b.d.a.OptionalLiveReloadServer       : LiveReload server is running on port 35729
-2019-10-18 14:41:41.999  INFO 6149 --- [  restartedMain] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port(s): 8088 (http) with context path ''
-2019-10-18 14:41:42.005  INFO 6149 --- [  restartedMain] c.s.p.s.SpringJasyptEnvConfigApplication : Started SpringJasyptEnvConfigApplication in 10.96 seconds (JVM running for 11.921)
-```
-
-Run the ```curl``` command to add sample data
+##### Run the ```curl``` command to add sample data
 ```
 $ curl -d '{"username":"ironman","userType":"enduser"}' 'http://localhost:8088/user' --header "Content-Type: application/json"
 
@@ -204,7 +277,7 @@ $ curl -d '{"username":"hulk","userType":"enduser"}' 'http://localhost:8088/user
 {"userId":3,"username":"hulk","userType":"enduser"}
 ```
 
-Check the results by fetching all results
+##### Check the results by fetching all results
 ```
 $ curl 'http://localhost:8088/user/1'
 {"userId":1,"username":"ironman","userType":"enduser"}
