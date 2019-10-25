@@ -274,8 +274,36 @@ spec:
 ```
 
 ### Connect to Kubernetes cluster
-### Deploy the application to Kubernetes cluster and expose the service 
 
+### Deploy the application to Kubernetes cluster and expose the service 
+1. Create the namespace
+```
+kubectl -f create k8s/springjasypt-namespace.yaml 
+namespace created
+```
+2. Deploy the application to the Kubernetes cluster
+```
+kubectl -f create k8s/springjasypt-deployment.yaml 
+deployment created
+```
+4. Check the deployment
+```
+kubectl get deployments -n samples
+```
+5. Check the pods 
+```
+kubectl get pods -n samples
+```
+6. Create the service for the deployment, run it again until you get the external ip address and port associated
+```
+kubectl -f create k8s/springjasypt-service.yaml 
+service created
+```
+7. Check the service for the deployment, run it again until you get the external ip address and port associated
+```
+kubectl get services -n samples 
+
+```
 
 ### Test your application 
 
