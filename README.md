@@ -158,11 +158,24 @@ Build your image and push to docker hub or any other container registry. We will
 sudo docker login docker.io
 ```
 
+Review the ```Dockerfile```, we are copying the target jar file to the container as app.jar and running the jar using java command option on port 8088
+```
+FROM java:openjdk-8-alpine
+
+WORKDIR /usr/src/app
+COPY ./target/*.jar ./app.jar
+
+ENTRYPOINT ["java","-Djava.security.egd=file:/dev/urandom","-jar","./app.jar", "--port=8088"]
+```
+
+##### Pushing the container image to the repository 
 I have created a public repository on hub.docker.com with the name spring-jasypt-on-kubernetes which we will use for pushing the image
 ```
 sudo docker build -t pr20180701/spring-jasypt-on-kubernetes .
 sudo docker push pr20180701/spring-jasypt-on-kubernetes
 ```
+
+
 
 ### Review the k8s directory  
 ##### Namespace yaml - springjasypt-namespace.yaml
@@ -174,6 +187,8 @@ metadata:
 ```
 
 ##### Deployment yaml - springjasypt-deployment.yaml
+Here you can see that all the environment specific values defined in ```application.properties``` are passed via ```spec.containers.env``` as name-value pairs. This is the Kubernetes way to set environment variables in the container. The container will pick up the values when you run it. 
+
 ```
 apiVersion: extensions/v1beta1
 kind: Deployment
