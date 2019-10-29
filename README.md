@@ -274,30 +274,54 @@ spec:
 ```
 
 ### Connect to Kubernetes cluster
+For this demo, I have created cluster in Google Kubernetes Engine (GKE). I have not included cluster creation steps, please refer relevant Kubernetes service provider documentation. 
+
+For connecting to GKE cluster use ```gcloud``` command to download kubernetes cluster configuration. If you have not logged in use  ```gcloud auth login``` to login to your GCP project and point the configuration to the project where you have created the GKE cluster. 
+
+```
+gcloud config set project <PROJECT_ID>
+```
+
+Once you have connected, run the following command to connect to the GKE Kubernetes cluster. 
+```
+gcloud container clusters get-credentials <yourclustername> --zone <yourzoneid>
+```
+
 
 ### Deploy the application to Kubernetes cluster and expose the service 
 1. Create the namespace
 ```
-kubectl -f create k8s/springjasypt-namespace.yaml 
-namespace created
+kubectl create -f k8s/springjasypt-namespace.yaml 
+namespace/samples created
 ```
 2. Deploy the application to the Kubernetes cluster
 ```
-kubectl -f create k8s/springjasypt-deployment.yaml 
-deployment created
+kubectl create -f k8s/springjasypt-deployment.yaml 
+deployment.extensions/springjasypt created
 ```
 4. Check the deployment
 ```
 kubectl get deployments -n samples
 ```
+Output:
+```
+NAME           DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
+springjasypt   1         1         1            1           40s
+```
 5. Check the pods 
 ```
 kubectl get pods -n samples
 ```
+Output
+```
+NAME                            READY   STATUS    RESTARTS   AGE
+springjasypt-67bdd5c794-95z7w   1/1     Running   0          79s
+```
+
 6. Create the service for the deployment, run it again until you get the external ip address and port associated
 ```
-kubectl -f create k8s/springjasypt-service.yaml 
-service created
+kubectl create -f k8s/springjasypt-service.yaml 
+service/springjasypt created
 ```
 7. Check the service for the deployment, run it again until you get the external ip address and port associated
 ```
