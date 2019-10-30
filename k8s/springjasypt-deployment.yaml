@@ -19,6 +19,8 @@ spec:
           value: -Xms128m -Xmx512m -XX:PermSize=128m -XX:MaxPermSize=128m -XX:+UseG1GC -Djava.security.egd=file:/dev/urandom
         - name: MYSQL_DB_USER
           value: "ENC(1cWxyUbkZeqw+LYA/LyRhg==)"
+        - name: MYSQL_DB_URL
+          value: "jdbc:mysql://<databasehostname or ip>:3306/testdb"
         - name: MYSQL_DB_SERVER
           value: "<databasehostname or ip>"
         - name: MYSQL_DB_PASSWD
